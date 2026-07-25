@@ -540,7 +540,7 @@ class ElevatorGame {
         if (currentWholeFloor !== lastDisplayedFloor) {
           self.currentFloor = currentWholeFloor;
           self._updateFloorDisplay(currentWholeFloor);
-          self.audio.playFloorBeep();
+          // self.audio.playFloorBeep(); // Removed passing floor sound as requested
           lastDisplayedFloor = currentWholeFloor;
         }
 
