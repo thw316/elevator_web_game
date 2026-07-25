@@ -454,11 +454,6 @@ class ElevatorGame {
 
   _updateFloorDisplay(floor) {
     this.floorDisplay.textContent = this._formatFloorDisplay(floor);
-
-    // Pop animation
-    this.floorDisplay.classList.remove('number-pop');
-    void this.floorDisplay.offsetHeight; // reset animation
-    this.floorDisplay.classList.add('number-pop');
   }
 
   /* ----- Utility ----- */
