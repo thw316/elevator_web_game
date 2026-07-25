@@ -30,16 +30,10 @@ const MAX_FLOOR = 999;
 
 /* ===== Elevator Physics Constants ===== */
 const FLOOR_HEIGHT = 3.3;       // meters per floor
-const MAX_ACCEL    = 1.2;       // m/s² (typical passenger elevator)
-const MAX_SPEED    = 3.0;       // m/s  (mid-rise elevator rated speed)
-const MAX_TRAVEL_TIME = 30;     // seconds — trips longer than this are compressed
-
-/**
- * Ramp distance: distance needed to accelerate from 0 to MAX_SPEED.
- *   d_ramp = v² / (2·a) = 9.0 / 2.4 = 3.75 m  (≈ 1.14 floors)
- * Total ramp (accel + decel) = 2 × d_ramp = 7.5 m
- */
-const D_RAMP = (MAX_SPEED * MAX_SPEED) / (2 * MAX_ACCEL); // 3.75 m
+const MAX_ACCEL    = 1.26;      // m/s² (Taipei 101 spec)
+const MAX_SPEED_UP   = 16.83;   // m/s (Taipei 101 upward cruise speed, 1010 m/min)
+const MAX_SPEED_DOWN = 10.0;    // m/s (Taipei 101 downward cruise speed, 600 m/min)
+const MAX_TRAVEL_TIME = 40;     // seconds — trips longer than this are compressed
 
 /* ===== Elevator Game Class ===== */
 class ElevatorGame {
@@ -315,20 +309,23 @@ class ElevatorGame {
    *   2. Cruise:       v stays at vPeak (may be 0-length for short trips)
    *   3. Deceleration: v decreases from vPeak to 0 at rate a_max
    *
-   * For short trips where totalDist < 2·D_RAMP, the elevator never
-   * reaches MAX_SPEED. The peak velocity is: vPeak = √(a·D)
+   * For short trips where totalDist < 2·d_ramp, the elevator never
+   * reaches maxSpeed. The peak velocity is: vPeak = √(a·D)
    *
    * @param {number} totalFloors — number of floor transitions
+   * @param {number} direction   — +1 (up) or -1 (down)
    * @returns {object} profile — { totalDist, vPeak, tAcc, tCruise, tDec, dAcc, dCruise, totalTime, timeScale }
    */
-  _buildMotionProfile(totalFloors) {
+  _buildMotionProfile(totalFloors, direction) {
     var totalDist = totalFloors * FLOOR_HEIGHT; // meters
-    var dRampTotal = 2 * D_RAMP;               // accel + decel distance
+    var maxSpeed = direction > 0 ? MAX_SPEED_UP : MAX_SPEED_DOWN;
+    var dRamp = (maxSpeed * maxSpeed) / (2 * MAX_ACCEL);
+    var dRampTotal = 2 * dRamp;               // accel + decel distance
 
     var vPeak, tAcc, tCruise, dAcc, dCruise;
 
     if (totalDist <= dRampTotal) {
-      // Short trip: can't reach MAX_SPEED
+      // Short trip: can't reach maxSpeed
       // Each ramp covers half the distance
       dAcc     = totalDist / 2;
       vPeak    = Math.sqrt(2 * MAX_ACCEL * dAcc); // v = √(2·a·d)
@@ -336,12 +333,12 @@ class ElevatorGame {
       tCruise  = 0;
       dCruise  = 0;
     } else {
-      // Long trip: reaches MAX_SPEED with cruise phase
-      vPeak    = MAX_SPEED;
-      dAcc     = D_RAMP;
-      tAcc     = MAX_SPEED / MAX_ACCEL;            // 2.5s
+      // Long trip: reaches maxSpeed with cruise phase
+      vPeak    = maxSpeed;
+      dAcc     = dRamp;
+      tAcc     = maxSpeed / MAX_ACCEL;            // 2.5s
       dCruise  = totalDist - dRampTotal;
-      tCruise  = dCruise / MAX_SPEED;
+      tCruise  = dCruise / maxSpeed;
     }
 
     var tDec      = tAcc;  // symmetric deceleration
@@ -481,7 +478,7 @@ class ElevatorGame {
     var startFloor = this.currentFloor;
 
     // Build physics profile
-    var profile = this._buildMotionProfile(totalFloors);
+    var profile = this._buildMotionProfile(totalFloors, direction);
 
     console.log('[Physics] Trip:', startFloor, '→', this.targetFloor,
       '| floors:', totalFloors,
