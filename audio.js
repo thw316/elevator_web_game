@@ -264,4 +264,27 @@ class ElevatorAudio {
       osc.stop(t + 0.12);
     }
   }
+
+  /**
+   * Speak the floor number in English using Web Speech API.
+   * e.g. floor 5 → "5, floor", B3 → "basement 3, floor"
+   * Fails silently if speechSynthesis is unavailable.
+   */
+  speakFloor(floorNumber) {
+    if (typeof speechSynthesis === 'undefined') return;
+
+    var text;
+    if (floorNumber < 0) {
+      text = 'basement ' + Math.abs(floorNumber) + ', floor';
+    } else {
+      text = floorNumber + ', floor';
+    }
+
+    var utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.1;
+    utterance.volume = 0.8;
+    speechSynthesis.speak(utterance);
+  }
 }

@@ -214,7 +214,7 @@ class ElevatorGame {
     }
 
     this.targetFloor = target;
-    this.floorInput.value = '';
+    // Keep the input value visible during travel — it will be cleared after arrival
     this._startElevator();
   }
 
@@ -239,10 +239,14 @@ class ElevatorGame {
     // 2. Move to target floor
     await this._moveToFloor();
 
-    // 3. Open doors
+    // 3. Speak the arrived floor in English
+    this.audio.speakFloor(this.currentFloor);
+
+    // 4. Open doors
     await this._openDoors();
 
-    // Re-enable input
+    // 5. Clear input after arrival, re-enable and focus
+    this.floorInput.value = '';
     this.floorDisplay.classList.add('idle-glow');
     this._setInputEnabled(true);
     this.floorInput.focus();
@@ -338,9 +342,6 @@ class ElevatorGame {
 
       // Update LED display
       self._updateFloorDisplay(self.currentFloor);
-
-      // Floor beep
-      self.audio.playFloorBeep();
 
       setTimeout(resolve, duration);
     });
