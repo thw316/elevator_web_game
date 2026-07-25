@@ -645,3 +645,28 @@ body {
 .floor-display-table.idle-glow .digit {
   animation: glow-pulse 3s ease-in-out infinite;
 }
+
+/* ============================================
+   Status Panel
+   ============================================ */
+.status-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: 'Orbitron', 'Microsoft JhengHei', sans-serif;
+  font-size: 0.9rem;
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.status-panel span {
+  font-weight: bold;
+  color: #64ffda; /* Add a nice accent color for the status text */
+}

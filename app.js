@@ -44,6 +44,7 @@ class ElevatorGame {
     this.audio        = new ElevatorAudio();
     this.shaftTimeout = null;
     this._submitLocked = false;
+    this.announceFloor = false;
 
     // DOM references
     this.floorDisplay = document.getElementById('floor-display');
@@ -55,6 +56,7 @@ class ElevatorGame {
     this.floorForm    = document.getElementById('floor-form');
 
     this.shaftStrip   = document.getElementById('shaft-strip');
+    this.voiceStatus  = document.getElementById('voice-status');
 
     this._init();
   }
@@ -93,6 +95,17 @@ class ElevatorGame {
     const initAudio = () => { this.audio.init(); };
     document.addEventListener('click',   initAudio, { once: true });
     document.addEventListener('keydown', initAudio, { once: true });
+
+    // Toggle voice announcement with 'v' key
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'v') {
+        this.announceFloor = !this.announceFloor;
+        console.log('[ElevatorGame] Announce floor toggled:', this.announceFloor);
+        if (this.voiceStatus) {
+          this.voiceStatus.textContent = this.announceFloor ? '開啟' : '關閉';
+        }
+      }
+    });
 
     // Auto-focus input
     this.floorInput.focus();
@@ -252,7 +265,9 @@ class ElevatorGame {
     await this._moveToFloor();
 
     // 3. Speak the arrived floor in English
-    this.audio.speakFloor(this.currentFloor);
+    if (this.announceFloor) {
+      this.audio.speakFloor(this.currentFloor);
+    }
 
     // 4. Open doors
     await this._openDoors();
