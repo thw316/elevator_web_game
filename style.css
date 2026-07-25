@@ -129,7 +129,16 @@ body {
     0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
-.floor-display {
+.floor-display-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 150px;
+  margin: 0 auto;
+}
+
+.floor-display-table .digit {
+  width: 50px;
+  text-align: center;
   font-family: 'Orbitron', 'Consolas', sans-serif;
   font-variant-numeric: tabular-nums;
   font-size: 64px;
@@ -139,10 +148,7 @@ body {
     0 0 16px rgba(118, 255, 3, 0.5),
     0 0 40px rgba(118, 255, 3, 0.25),
     0 0 80px rgba(118, 255, 3, 0.1);
-  min-width: 150px;
-  text-align: center;
   line-height: 1;
-  letter-spacing: 2px;
   transition: text-shadow 0.2s;
 }
 
@@ -636,6 +642,6 @@ body {
   }
 }
 
-.floor-display.idle-glow {
+.floor-display-table.idle-glow .digit {
   animation: glow-pulse 3s ease-in-out infinite;
 }

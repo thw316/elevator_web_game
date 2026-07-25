@@ -612,7 +612,14 @@ class ElevatorGame {
   /* ----- Display Update ----- */
 
   _updateFloorDisplay(floor) {
-    this.floorDisplay.textContent = this._formatFloorDisplay(floor);
+    var str = this._formatFloorDisplay(floor);
+    var padded = str.padStart(3, ' ');
+    var d1 = document.getElementById('digit-1');
+    var d2 = document.getElementById('digit-2');
+    var d3 = document.getElementById('digit-3');
+    if (d1) d1.textContent = padded.charAt(0) === ' ' ? '\u00A0' : padded.charAt(0);
+    if (d2) d2.textContent = padded.charAt(1) === ' ' ? '\u00A0' : padded.charAt(1);
+    if (d3) d3.textContent = padded.charAt(2) === ' ' ? '\u00A0' : padded.charAt(2);
   }
 
   /* ----- Utility ----- */
