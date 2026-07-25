@@ -1,0 +1,639 @@
+/* ============================================
+   Elevator Game — Stylesheet
+   ============================================ */
+
+/* --- Reset & Base --- */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  background: linear-gradient(180deg, #E3F2FD 0%, #BBDEFB 40%, #90CAF9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================
+   Floating Clouds (decorative)
+   ============================================ */
+.clouds-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.cloud {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 100px;
+  box-shadow:
+    30px -8px 0 8px rgba(255, 255, 255, 0.5),
+    -20px -4px 0 6px rgba(255, 255, 255, 0.45),
+    50px 4px 0 12px rgba(255, 255, 255, 0.4);
+}
+
+.c1 {
+  width: 180px;
+  height: 50px;
+  top: 10%;
+  animation: float-cloud 32s linear infinite;
+}
+
+.c2 {
+  width: 130px;
+  height: 38px;
+  top: 25%;
+  animation: float-cloud 42s linear infinite;
+  animation-delay: -15s;
+}
+
+.c3 {
+  width: 160px;
+  height: 44px;
+  top: 55%;
+  animation: float-cloud 38s linear infinite;
+  animation-delay: -8s;
+}
+
+.c4 {
+  width: 100px;
+  height: 30px;
+  top: 75%;
+  animation: float-cloud 50s linear infinite;
+  animation-delay: -22s;
+}
+
+@keyframes float-cloud {
+  0%   { transform: translateX(-300px); }
+  100% { transform: translateX(calc(100vw + 100px)); }
+}
+
+/* ============================================
+   Game Container
+   ============================================ */
+.game-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 50px;
+  padding: 20px;
+}
+
+/* ============================================
+   LEFT SIDE — Elevator Interior
+   ============================================ */
+.elevator-section {
+  flex-shrink: 0;
+}
+
+.elevator-frame {
+  width: 370px;
+  background: linear-gradient(155deg, #ECEFF1 0%, #CFD8DC 100%);
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.14),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 2px 4px rgba(255, 255, 255, 0.7),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* --- Display Panel --- */
+.display-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(180deg, #0D1B2A 0%, #1B2838 100%);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  box-shadow:
+    inset 0 4px 14px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.floor-display {
+  font-family: 'Orbitron', monospace;
+  font-size: 64px;
+  font-weight: 900;
+  color: #76FF03;
+  text-shadow:
+    0 0 16px rgba(118, 255, 3, 0.5),
+    0 0 40px rgba(118, 255, 3, 0.25),
+    0 0 80px rgba(118, 255, 3, 0.1);
+  min-width: 150px;
+  text-align: center;
+  line-height: 1;
+  letter-spacing: 2px;
+  transition: text-shadow 0.2s;
+}
+
+/* Arrow indicators */
+.arrow {
+  font-size: 32px;
+  color: #546E7A;
+  opacity: 0.2;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.arrow.active {
+  opacity: 1;
+  animation: arrow-pulse 0.8s ease-in-out infinite;
+}
+
+.arrow-up.active {
+  color: #FF5252;
+  text-shadow: 0 0 12px rgba(255, 82, 82, 0.6);
+}
+
+.arrow-down.active {
+  color: #448AFF;
+  text-shadow: 0 0 12px rgba(68, 138, 255, 0.6);
+}
+
+@keyframes arrow-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.9); }
+}
+
+/* --- Door Frame --- */
+.door-frame {
+  background: linear-gradient(180deg, #37474F 0%, #263238 100%);
+  border-radius: 18px;
+  padding: 10px;
+  margin-bottom: 20px;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.door-container {
+  display: flex;
+  height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Interior graphics (visible when doors open) */
+.elevator-interior {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, #D1C4E9 0%, #E8EAF6 30%, #C5CAE9 85%, #9FA8DA 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Interior ceiling lamp */
+.interior-lamp {
+  width: 90px;
+  height: 12px;
+  background: #FFFDE7;
+  border-radius: 0 0 8px 8px;
+  box-shadow:
+    0 4px 20px rgba(255, 235, 59, 0.6),
+    0 0 40px rgba(255, 255, 255, 0.8);
+}
+
+/* Interior mirror on back wall */
+.interior-mirror {
+  position: absolute;
+  top: 30px;
+  width: 140px;
+  height: 120px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(224, 247, 250, 0.4) 100%);
+  border: 4px solid #B0BEC5;
+  border-radius: 8px;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.9);
+}
+
+/* Stainless handrail */
+.interior-rail {
+  position: absolute;
+  top: 170px;
+  width: 220px;
+  height: 10px;
+  background: linear-gradient(180deg, #CFD8DC, #78909C);
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Interior carpet floor line */
+.interior-floor {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 25px;
+  background: linear-gradient(180deg, #5C6BC0, #3F51B5);
+  border-top: 2px solid #303F9F;
+}
+
+/* Elevator doors */
+.door {
+  width: 50%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.door-left {
+  background: linear-gradient(
+    90deg,
+    #90A4AE 0%,
+    #B0BEC5 30%,
+    #CFD8DC 48%,
+    #B0BEC5 50%
+  );
+  transform: translateX(-100%); /* Open by default */
+}
+
+.door-right {
+  background: linear-gradient(
+    90deg,
+    #B0BEC5 50%,
+    #CFD8DC 52%,
+    #B0BEC5 70%,
+    #90A4AE 100%
+  );
+  transform: translateX(100%); /* Open by default */
+}
+
+/* Metallic highlight lines on doors */
+.door::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.door-left::after  { right: 6px; }
+.door-right::after { left: 6px; }
+
+/* Closed state */
+.door-left.closed  { transform: translateX(0); }
+.door-right.closed { transform: translateX(0); }
+
+/* --- Input Area --- */
+.input-area {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#floor-input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 60px;
+  font-family: 'Orbitron', monospace;
+  font-size: 30px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 2px;
+  color: #1A237E;
+  background: #FFFFFF;
+  border: 3px solid #B0BEC5;
+  border-radius: 14px;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  caret-color: #FF9800;
+}
+
+#floor-input:focus {
+  border-color: #FF9800;
+  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.18);
+}
+
+#floor-input:disabled {
+  background: #ECEFF1;
+  color: #90A4AE;
+  border-color: #CFD8DC;
+  cursor: not-allowed;
+}
+
+#go-btn {
+  flex-shrink: 0;
+  width: 76px;
+  height: 60px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff;
+  background: linear-gradient(145deg, #FFA726, #FB8C00);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow:
+    0 4px 14px rgba(255, 152, 0, 0.4),
+    inset 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+#go-btn:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow:
+    0 6px 20px rgba(255, 152, 0, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+#go-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+
+#go-btn:disabled {
+  background: linear-gradient(145deg, #CFD8DC, #B0BEC5);
+  color: #90A4AE;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Quick Floor Selection Buttons (Toddler friendly) */
+.quick-floors {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.quick-btn {
+  height: 42px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1A237E;
+  background: linear-gradient(145deg, #E3F2FD, #BBDEFB);
+  border: 2px solid #90CAF9;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.quick-btn:hover:not(:disabled) {
+  background: linear-gradient(145deg, #BBDEFB, #90CAF9);
+  border-color: #42A5F5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(33, 150, 243, 0.25);
+}
+
+.quick-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ============================================
+   RIGHT SIDE — Building Cross-Section
+   ============================================ */
+.building-section {
+  flex-shrink: 0;
+}
+
+.building-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.12));
+}
+
+/* --- Building Roof (triangle) --- */
+.building-roof {
+  width: 0;
+  height: 0;
+  border-left: 105px solid transparent;
+  border-right: 105px solid transparent;
+  border-bottom: 50px solid #D32F2F;
+  position: relative;
+}
+
+/* Roof highlight */
+.building-roof::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: -30px;
+  width: 0;
+  height: 0;
+  border-left: 30px solid transparent;
+  border-right: 30px solid transparent;
+  border-bottom: 14px solid rgba(255, 255, 255, 0.2);
+}
+
+/* --- Building Body --- */
+.building-body {
+  width: 196px;
+  background: #FFF8E1;
+  border-left: 10px solid #8D6E63;
+  border-right: 10px solid #8D6E63;
+  position: relative;
+}
+
+/* Decorative wall pattern */
+.building-body::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0px,
+    transparent 44px,
+    rgba(141, 110, 99, 0.08) 44px,
+    rgba(141, 110, 99, 0.08) 46px
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* --- Shaft Viewport --- */
+.shaft-viewport {
+  width: 100%;
+  height: 506px; /* 11 visible floors × 46px */
+  overflow: hidden;
+  position: relative;
+}
+
+.shaft-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  transform: translateY(-46px); /* Hide top buffer slot */
+}
+
+/* Individual floor slot */
+.shaft-floor {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5D4037;
+  border-bottom: 1px solid rgba(188, 170, 164, 0.4);
+  position: relative;
+  user-select: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.shaft-floor:hover {
+  background-color: rgba(255, 236, 179, 0.5);
+}
+
+/* Floor level line */
+.shaft-floor::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 35%;
+  height: 2px;
+  background: rgba(141, 110, 99, 0.15);
+}
+
+/* --- Car Indicator (fixed at center of viewport) --- */
+.car-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(5 * 46px); /* 5th slot from viewport top (0-indexed) = center of 11 */
+  height: 46px;
+  background: rgba(255, 87, 34, 0.12);
+  border-top: 2px solid rgba(255, 87, 34, 0.6);
+  border-bottom: 2px solid rgba(255, 87, 34, 0.6);
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+/* Mini elevator car box */
+.car-box {
+  width: 26px;
+  height: 34px;
+  background: linear-gradient(180deg, #F44336, #D32F2F);
+  border-radius: 4px 4px 2px 2px;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+}
+
+.car-window {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  height: 12px;
+  background: #BBDEFB;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+
+.car-door-line {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* --- Building Base --- */
+.building-base {
+  width: 220px;
+  height: 18px;
+  background: linear-gradient(180deg, #6D4C41, #5D4037);
+  border-radius: 0 0 6px 6px;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+/* Number pop on floor change */
+@keyframes number-pop {
+  0%   { transform: scale(1.25); }
+  60%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.number-pop {
+  animation: number-pop 0.2s ease-out;
+}
+
+/* Shake on invalid input */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%      { transform: translateX(-8px); }
+  20%      { transform: translateX(8px); }
+  30%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  50%      { transform: translateX(-4px); }
+  60%      { transform: translateX(4px); }
+  70%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
+  90%      { transform: translateX(-1px); }
+}
+
+.shake {
+  animation: shake 0.55s ease;
+}
+
+/* Gentle glow pulse for the floor display during idle */
+@keyframes glow-pulse {
+  0%, 100% {
+    text-shadow:
+      0 0 16px rgba(118, 255, 3, 0.5),
+      0 0 40px rgba(118, 255, 3, 0.25);
+  }
+  50% {
+    text-shadow:
+      0 0 20px rgba(118, 255, 3, 0.7),
+      0 0 50px rgba(118, 255, 3, 0.35),
+      0 0 80px rgba(118, 255, 3, 0.15);
+  }
+}
+
+.floor-display.idle-glow {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
