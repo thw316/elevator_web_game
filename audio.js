@@ -117,7 +117,8 @@ class ElevatorAudio {
 
   /**
    * Start elevator moving hum (continuous sound)
-   * Low-frequency oscillator with subtle vibrato
+   * Low-frequency oscillator with subtle vibrato.
+   * Frequency and volume will be dynamically adjusted by setMovingIntensity().
    */
   startMovingSound() {
     if (!this.ctx) return;
@@ -128,7 +129,7 @@ class ElevatorAudio {
     // Main low hum
     this.movingOsc = this.ctx.createOscillator();
     this.movingOsc.type = 'sine';
-    this.movingOsc.frequency.setValueAtTime(75, now);
+    this.movingOsc.frequency.setValueAtTime(55, now); // start low, will be adjusted
 
     // Vibrato (LFO modulating frequency)
     this.movingLfo = this.ctx.createOscillator();
@@ -144,13 +145,36 @@ class ElevatorAudio {
     // Volume envelope: fade in
     this.movingGain = this.ctx.createGain();
     this.movingGain.gain.setValueAtTime(0, now);
-    this.movingGain.gain.linearRampToValueAtTime(0.06, now + 0.4);
+    this.movingGain.gain.linearRampToValueAtTime(0.02, now + 0.3);
 
     this.movingOsc.connect(this.movingGain);
     this.movingGain.connect(this.ctx.destination);
 
     this.movingOsc.start(now);
     this.movingLfo.start(now);
+  }
+
+  /**
+   * Dynamically adjust the moving sound based on current speed.
+   * Maps normalizedSpeed [0..1] to:
+   *   - Frequency: 55 Hz (idle) → 90 Hz (full speed)
+   *   - Volume:    0.02 → 0.08
+   *
+   * @param {number} normalizedSpeed — 0.0 (stopped) to 1.0 (peak velocity)
+   */
+  setMovingIntensity(normalizedSpeed) {
+    if (!this.movingOsc || !this.movingGain || !this.ctx) return;
+
+    var speed = Math.max(0, Math.min(1, normalizedSpeed));
+    var now = this.ctx.currentTime;
+
+    // Frequency: 55 → 90 Hz  (linear interpolation)
+    var freq = 55 + speed * 35;
+    this.movingOsc.frequency.setTargetAtTime(freq, now, 0.05);
+
+    // Volume: 0.02 → 0.08
+    var vol = 0.02 + speed * 0.06;
+    this.movingGain.gain.setTargetAtTime(vol, now, 0.05);
   }
 
   /** Stop elevator moving hum (fade out) */

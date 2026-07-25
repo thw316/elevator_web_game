@@ -116,10 +116,10 @@ body {
 
 /* --- Display Panel --- */
 .display-panel {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
+  justify-items: center;
   background: linear-gradient(180deg, #0D1B2A 0%, #1B2838 100%);
   border-radius: 16px;
   padding: 18px 20px;
@@ -130,7 +130,8 @@ body {
 }
 
 .floor-display {
-  font-family: 'Orbitron', monospace;
+  font-family: 'Orbitron', 'Consolas', sans-serif;
+  font-variant-numeric: tabular-nums;
   font-size: 64px;
   font-weight: 900;
   color: #76FF03;
@@ -311,7 +312,8 @@ body {
   min-width: 0;
   box-sizing: border-box;
   height: 60px;
-  font-family: 'Orbitron', monospace;
+  font-family: 'Orbitron', 'Consolas', sans-serif;
+  font-variant-numeric: tabular-nums;
   font-size: 30px;
   font-weight: 700;
   text-align: center;

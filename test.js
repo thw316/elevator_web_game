@@ -1,11 +1,15 @@
 /**
  * test.js — Automated Browser Verification Script
  *
- * This script is designed for AI agents or developers to perform end-to-end (E2E) E2E UI
+ * This script is designed for AI agents or developers to perform end-to-end (E2E)
  * testing and state machine verification automatically.
  * It spawns a temporary static web server, launches a headless Puppeteer browser,
  * simulates user interaction (e.g. typing floor 5), takes screenshots of all state transitions,
  * and automatically shuts down the server upon completion.
+ *
+ * Physics timing reference for 1F→5F (4 floors = 13.2m):
+ *   tAcc = 2.5s, tCruise = 1.9s, tDec = 2.5s → total ~6.9s movement
+ *   + 1s close + 0.6s arrival + 1s open = ~9.5s total sequence
  */
 
 const http = require('http');
@@ -102,9 +106,26 @@ server.listen(PORT, async () => {
     await page.screenshot({ path: 'test_moving.png' });
     console.log('[Screenshot] Saved moving state to: test_moving.png');
 
-    // Wait 9.5s for elevator to arrive and open doors (1F -> 5F travel)
-    console.log('[Wait] Waiting 9.5s for movement to finish and doors to open at 5F...');
-    await sleep(9500);
+    // Wait 1s longer to let displacement accumulate, then verify scroll direction
+    await sleep(1000);
+    const shaftTransform = await page.$eval('#shaft-strip', el => el.style.transform);
+    console.log(`[Verify] Shaft Transform during UP travel: ${shaftTransform}`);
+    let isScrollingDown = false;
+    const match = shaftTransform.match(/translateY\(([-\d.]+)px\)/);
+    if (match) {
+      const yOffset = parseFloat(match[1]);
+      // When going UP, building should scroll DOWN (offset is > -46 and <= 0)
+      isScrollingDown = yOffset > -46 && yOffset <= 0;
+    }
+    console.log(`[Verify] Building Scrolling Correctly (offset > -46): ${isScrollingDown} (Expected: true) - ${isScrollingDown ? '✅' : '❌'}`);
+    if (!isScrollingDown) throw new Error("Shaft strip is scrolling in the wrong direction!");
+
+    // Wait for elevator to arrive at 5F and doors to open
+    // Physics: 4 floors × 3.3m = 13.2m → tAcc=2.5s + tCruise=1.9s + tDec=2.5s = 6.9s movement
+    // Total from Enter: 1s close + 6.9s move + 0.6s ding + 1s open = 9.5s
+    // Already waited 2.7s (0.2 + 1.5 + 1.0), need ~7.8s more + buffer
+    console.log('[Wait] Waiting 9s for physics-based movement to finish and doors to open at 5F...');
+    await sleep(9000);
 
     const finalFloor = await page.$eval('#floor-display', el => el.textContent.trim());
     console.log(`[Verify] Arrived Floor: "${finalFloor}" (Expected: "5") - ${finalFloor === '5' ? '✅' : '❌'}`);

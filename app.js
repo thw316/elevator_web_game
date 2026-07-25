@@ -3,6 +3,11 @@
  *
  * State machine: IDLE → CLOSING → MOVING → ARRIVING → OPENING → IDLE
  * Floor numbering: B99(-99) ... B1(-1), 1 ... 999 (no floor 0)
+ *
+ * Movement Physics — Trapezoidal Velocity Profile:
+ *   Acceleration phase: d(t) = ½ · a · t²
+ *   Cruise phase:       d(t) = d_acc + v_max · (t − t_acc)
+ *   Deceleration phase: d(t) = D − ½ · a · (T − t)²
  */
 
 /* ===== Constants ===== */
@@ -22,6 +27,19 @@ const CENTER_SLOT    = Math.floor(TOTAL_SLOTS / 2);       // index 6
 
 const MIN_FLOOR = -99;
 const MAX_FLOOR = 999;
+
+/* ===== Elevator Physics Constants ===== */
+const FLOOR_HEIGHT = 3.3;       // meters per floor
+const MAX_ACCEL    = 1.2;       // m/s² (typical passenger elevator)
+const MAX_SPEED    = 3.0;       // m/s  (mid-rise elevator rated speed)
+const MAX_TRAVEL_TIME = 30;     // seconds — trips longer than this are compressed
+
+/**
+ * Ramp distance: distance needed to accelerate from 0 to MAX_SPEED.
+ *   d_ramp = v² / (2·a) = 9.0 / 2.4 = 3.75 m  (≈ 1.14 floors)
+ * Total ramp (accel + decel) = 2 × d_ramp = 7.5 m
+ */
+const D_RAMP = (MAX_SPEED * MAX_SPEED) / (2 * MAX_ACCEL); // 3.75 m
 
 /* ===== Elevator Game Class ===== */
 class ElevatorGame {
@@ -287,12 +305,191 @@ class ElevatorGame {
     });
   }
 
-  /* ----- Movement ----- */
+  /* ----- Movement — Physics Engine ----- */
 
+  /**
+   * Build a Trapezoidal Velocity Profile for the trip.
+   *
+   * Phases:
+   *   1. Acceleration: v increases from 0 to vPeak at rate a_max
+   *   2. Cruise:       v stays at vPeak (may be 0-length for short trips)
+   *   3. Deceleration: v decreases from vPeak to 0 at rate a_max
+   *
+   * For short trips where totalDist < 2·D_RAMP, the elevator never
+   * reaches MAX_SPEED. The peak velocity is: vPeak = √(a·D)
+   *
+   * @param {number} totalFloors — number of floor transitions
+   * @returns {object} profile — { totalDist, vPeak, tAcc, tCruise, tDec, dAcc, dCruise, totalTime, timeScale }
+   */
+  _buildMotionProfile(totalFloors) {
+    var totalDist = totalFloors * FLOOR_HEIGHT; // meters
+    var dRampTotal = 2 * D_RAMP;               // accel + decel distance
+
+    var vPeak, tAcc, tCruise, dAcc, dCruise;
+
+    if (totalDist <= dRampTotal) {
+      // Short trip: can't reach MAX_SPEED
+      // Each ramp covers half the distance
+      dAcc     = totalDist / 2;
+      vPeak    = Math.sqrt(2 * MAX_ACCEL * dAcc); // v = √(2·a·d)
+      tAcc     = vPeak / MAX_ACCEL;               // t = v/a
+      tCruise  = 0;
+      dCruise  = 0;
+    } else {
+      // Long trip: reaches MAX_SPEED with cruise phase
+      vPeak    = MAX_SPEED;
+      dAcc     = D_RAMP;
+      tAcc     = MAX_SPEED / MAX_ACCEL;            // 2.5s
+      dCruise  = totalDist - dRampTotal;
+      tCruise  = dCruise / MAX_SPEED;
+    }
+
+    var tDec      = tAcc;  // symmetric deceleration
+    var totalTime = tAcc + tCruise + tDec;
+
+    // Time compression for long trips to keep the game playable
+    // Physics curve shape is preserved; only playback speed changes
+    var timeScale = 1;
+    if (totalTime > MAX_TRAVEL_TIME) {
+      timeScale = totalTime / MAX_TRAVEL_TIME;
+    }
+
+    return {
+      totalDist: totalDist,
+      vPeak:     vPeak,
+      tAcc:      tAcc,
+      tCruise:   tCruise,
+      tDec:      tDec,
+      dAcc:      dAcc,
+      dCruise:   dCruise,
+      totalTime: totalTime,
+      timeScale: timeScale,
+      displayTime: totalTime / timeScale  // actual wall-clock seconds
+    };
+  }
+
+  /**
+   * Continuous displacement function d(t) for the trapezoidal profile.
+   *
+   * Given a profile and elapsed physics-time t (in seconds), returns
+   * the distance traveled in meters.
+   *
+   * Formulas:
+   *   Acceleration  (0 ≤ t ≤ tAcc):            d = ½·a·t²
+   *   Cruise        (tAcc ≤ t ≤ tAcc+tCruise):  d = dAcc + vPeak·(t−tAcc)
+   *   Deceleration  (t > tAcc+tCruise):          d = D − ½·a·(T−t)²
+   *
+   * @param {object} profile — motion profile from _buildMotionProfile
+   * @param {number} t       — elapsed physics time in seconds
+   * @returns {number} displacement in meters (clamped to [0, totalDist])
+   */
+  _getDisplacement(profile, t) {
+    if (t <= 0) return 0;
+    if (t >= profile.totalTime) return profile.totalDist;
+
+    var tAcc     = profile.tAcc;
+    var tCruise  = profile.tCruise;
+    var dAcc     = profile.dAcc;
+    var totalTime = profile.totalTime;
+    var totalDist = profile.totalDist;
+
+    if (t <= tAcc) {
+      // Acceleration phase: d = ½·a·t²
+      return 0.5 * MAX_ACCEL * t * t;
+    }
+
+    var t2 = t - tAcc;
+    if (t2 <= tCruise) {
+      // Cruise phase: d = dAcc + vPeak·(t − tAcc)
+      return dAcc + profile.vPeak * t2;
+    }
+
+    // Deceleration phase: d = D − ½·a·(T − t)²
+    var remaining = totalTime - t;
+    return totalDist - 0.5 * MAX_ACCEL * remaining * remaining;
+  }
+
+  /**
+   * Get the current instantaneous velocity at physics-time t.
+   * Used for dynamic audio intensity.
+   *
+   * @param {object} profile
+   * @param {number} t
+   * @returns {number} velocity in m/s
+   */
+  _getVelocity(profile, t) {
+    if (t <= 0 || t >= profile.totalTime) return 0;
+
+    if (t <= profile.tAcc) {
+      return MAX_ACCEL * t;  // v = a·t
+    }
+
+    var t2 = t - profile.tAcc;
+    if (t2 <= profile.tCruise) {
+      return profile.vPeak;  // constant speed
+    }
+
+    // Deceleration: v = a·(T − t)
+    return MAX_ACCEL * (profile.totalTime - t);
+  }
+
+  /** Calculate number of floor transitions between two floors (skipping 0) */
+  _calcTotalFloors(from, to) {
+    var raw = Math.abs(to - from);
+    var crossesZero = (from < 0 && to > 0) || (from > 0 && to < 0);
+    return crossesZero ? raw - 1 : raw;
+  }
+
+  /**
+   * Convert a displacement (meters) to floor number, accounting for the
+   * skip-zero rule. Returns { wholeFloor, fraction }.
+   *
+   * @param {number} startFloor  — starting floor number
+   * @param {number} direction   — +1 (up) or -1 (down)
+   * @param {number} displacement — meters traveled
+   * @returns {{ wholeFloor: number, fraction: number }}
+   */
+  _displacementToFloor(startFloor, direction, displacement) {
+    var floorsTraversed = displacement / FLOOR_HEIGHT;
+    var wholeFloors = Math.floor(floorsTraversed);
+    var fraction = floorsTraversed - wholeFloors;
+
+    // Walk floor-by-floor to handle the skip-zero rule
+    var floor = startFloor;
+    for (var i = 0; i < wholeFloors; i++) {
+      floor += direction;
+      if (floor === 0) floor += direction;
+    }
+
+    return { wholeFloor: floor, fraction: fraction };
+  }
+
+  /**
+   * Main movement method — continuous physics-driven animation.
+   *
+   * Uses requestAnimationFrame for smooth 60fps rendering.
+   * The displacement function d(t) drives all visual updates:
+   *   - LED floor display
+   *   - Shaft strip scrolling (sub-pixel precision)
+   *   - Floor-passing beep sounds
+   *   - Dynamic motor sound intensity
+   */
   async _moveToFloor() {
     this.state = State.MOVING;
     var direction = this.targetFloor > this.currentFloor ? 1 : -1;
     var totalFloors = this._calcTotalFloors(this.currentFloor, this.targetFloor);
+    var startFloor = this.currentFloor;
+
+    // Build physics profile
+    var profile = this._buildMotionProfile(totalFloors);
+
+    console.log('[Physics] Trip:', startFloor, '→', this.targetFloor,
+      '| floors:', totalFloors,
+      '| dist:', profile.totalDist.toFixed(1) + 'm',
+      '| vPeak:', profile.vPeak.toFixed(2) + 'm/s',
+      '| time:', profile.totalTime.toFixed(2) + 's',
+      '| timeScale:', profile.timeScale.toFixed(2) + 'x',
+      '| displayTime:', profile.displayTime.toFixed(2) + 's');
 
     // Activate direction arrow
     if (direction > 0) {
@@ -304,11 +501,71 @@ class ElevatorGame {
     // Start ambient moving sound
     this.audio.startMovingSound();
 
-    // Traverse floor by floor
-    for (var i = 0; i < totalFloors; i++) {
-      var duration = this._getFloorDuration(i, totalFloors);
-      await this._moveOneFloor(direction, duration);
-    }
+    // Initialize shaft for continuous scrolling
+    this.shaftStrip.style.transition = 'none';
+
+    var self = this;
+    var lastDisplayedFloor = startFloor;
+    var startTime = null;
+    var animFrameId = null;
+
+    await new Promise(function(resolve) {
+      function tick(timestamp) {
+        if (startTime === null) startTime = timestamp;
+
+        // Elapsed wall-clock time in seconds
+        var elapsedWall = (timestamp - startTime) / 1000;
+
+        // Convert to physics time (apply time compression)
+        var physicsTime = elapsedWall * profile.timeScale;
+
+        // Clamp to total physics time
+        if (physicsTime >= profile.totalTime) {
+          physicsTime = profile.totalTime;
+        }
+
+        // Get displacement from physics model
+        var displacement = self._getDisplacement(profile, physicsTime);
+
+        // Get current velocity for audio
+        var velocity = self._getVelocity(profile, physicsTime);
+        var normalizedSpeed = velocity / profile.vPeak;
+        if (self.audio.setMovingIntensity) {
+          self.audio.setMovingIntensity(normalizedSpeed);
+        }
+
+        // Convert displacement to floor position
+        var pos = self._displacementToFloor(startFloor, direction, displacement);
+        var currentWholeFloor = pos.wholeFloor;
+        var floorFraction = pos.fraction;
+
+        // Update LED display when floor changes
+        if (currentWholeFloor !== lastDisplayedFloor) {
+          self.currentFloor = currentWholeFloor;
+          self._updateFloorDisplay(currentWholeFloor);
+          self.audio.playFloorBeep();
+          lastDisplayedFloor = currentWholeFloor;
+        }
+
+        // Update shaft strip with sub-pixel scrolling
+        self._updateShaftContinuous(currentWholeFloor, direction, floorFraction);
+
+        // Check if animation is complete
+        if (physicsTime >= profile.totalTime) {
+          // Ensure we land exactly on the target floor
+          self.currentFloor = self.targetFloor;
+          self._updateFloorDisplay(self.targetFloor);
+          self._updateShaft(self.targetFloor);
+          self.shaftStrip.style.transform = 'translateY(-' + SLOT_HEIGHT + 'px)';
+          resolve();
+          return;
+        }
+
+        animFrameId = requestAnimationFrame(tick);
+      }
+
+      animFrameId = requestAnimationFrame(tick);
+    });
 
     // Stop sounds & arrows
     this.audio.stopMovingSound();
@@ -321,93 +578,31 @@ class ElevatorGame {
     await this._delay(600);
   }
 
-  /** Calculate number of floor transitions between two floors (skipping 0) */
-  _calcTotalFloors(from, to) {
-    var raw = Math.abs(to - from);
-    var crossesZero = (from < 0 && to > 0) || (from > 0 && to < 0);
-    return crossesZero ? raw - 1 : raw;
-  }
-
-  /** Advance by one floor and animate */
-  _moveOneFloor(direction, duration) {
-    var self = this;
-    return new Promise(function(resolve) {
-      // Animate shaft scroll BEFORE updating currentFloor
-      self._animateShaftScroll(direction, duration);
-
-      // Calculate new floor
-      var newFloor = self.currentFloor + direction;
-      if (newFloor === 0) newFloor += direction; // skip floor 0
-      self.currentFloor = newFloor;
-
-      // Update LED display
-      self._updateFloorDisplay(self.currentFloor);
-
-      setTimeout(resolve, duration);
-    });
-  }
-
-  /* ----- Shaft Scroll Animation ----- */
+  /* ----- Continuous Shaft Scroll ----- */
 
   /**
-   * Smoothly scroll the shaft strip by one floor.
-   * The strip has 13 slots (11 visible + 2 buffer).
-   * Default translateY = -46px (hiding slot 0 above viewport).
+   * Update shaft strip position for continuous scrolling.
+   *
+   * Instead of animating one-slot jumps, we compute the exact sub-pixel
+   * offset based on the fractional floor position and apply it directly.
+   *
+   * @param {number} wholeFloor — current whole floor number
+   * @param {number} direction  — +1 (up) or -1 (down)
+   * @param {number} fraction   — fractional progress toward next floor [0, 1)
    */
-  _animateShaftScroll(direction, floorDuration) {
-    if (this.shaftTimeout) {
-      clearTimeout(this.shaftTimeout);
-      this.shaftTimeout = null;
-    }
+  _updateShaftContinuous(wholeFloor, direction, fraction) {
+    // Update slot labels centered on current whole floor
+    this._updateShaft(wholeFloor);
 
-    var scrollDuration = Math.min(Math.floor(floorDuration * 0.75), 700);
+    // Calculate sub-pixel offset
+    // Base offset hides the top buffer slot: -SLOT_HEIGHT
+    // Additional offset based on fraction of floor traversed
+    var subOffset = fraction * SLOT_HEIGHT * direction;
+    var baseOffset = -SLOT_HEIGHT;
+    // Fix: when going UP (direction=1), strip should scroll DOWN (offset moves from -46 towards 0)
+    var totalOffset = baseOffset + subOffset;
 
-    // For very fast movement, skip animation and just update
-    if (floorDuration < 80) {
-      this.shaftStrip.style.transition = 'none';
-      var self = this;
-      queueMicrotask(function() {
-        self._updateShaft(self.currentFloor);
-        self.shaftStrip.style.transform = 'translateY(-' + SLOT_HEIGHT + 'px)';
-      });
-      return;
-    }
-
-    // Step 1: Ensure strip is in the "before" state
-    this.shaftStrip.style.transition = 'none';
-    this._updateShaft(this.currentFloor);
-    this.shaftStrip.style.transform = 'translateY(-' + SLOT_HEIGHT + 'px)';
-    void this.shaftStrip.offsetHeight; // force reflow
-
-    // Step 2: Pre-populate the buffer slot that will become visible
-    var slots = this.shaftStrip.children;
-    if (direction > 0) {
-      var newCenter = this._nextFloor(this.currentFloor, direction);
-      var newTopFloor = this._getFloorAtOffset(newCenter, CENTER_SLOT);
-      slots[0].textContent = this._formatFloorLabel(newTopFloor);
-    } else {
-      var newCenter = this._nextFloor(this.currentFloor, direction);
-      var newBottomFloor = this._getFloorAtOffset(newCenter, -CENTER_SLOT);
-      slots[TOTAL_SLOTS - 1].textContent = this._formatFloorLabel(newBottomFloor);
-    }
-
-    // Step 3: Animate
-    this.shaftStrip.style.transition = 'transform ' + scrollDuration + 'ms ease-out';
-    if (direction > 0) {
-      this.shaftStrip.style.transform = 'translateY(0)';
-    } else {
-      this.shaftStrip.style.transform = 'translateY(-' + (2 * SLOT_HEIGHT) + 'px)';
-    }
-
-    // Step 4: After animation, reset
-    var self = this;
-    this.shaftTimeout = setTimeout(function() {
-      self.shaftStrip.style.transition = 'none';
-      self._updateShaft(self.currentFloor);
-      self.shaftStrip.style.transform = 'translateY(-' + SLOT_HEIGHT + 'px)';
-      void self.shaftStrip.offsetHeight;
-      self.shaftTimeout = null;
-    }, scrollDuration + 30);
+    this.shaftStrip.style.transform = 'translateY(' + totalOffset + 'px)';
   }
 
   /** Get the next floor in the given direction, skipping 0 */
@@ -415,39 +610,6 @@ class ElevatorGame {
     var next = floor + direction;
     if (next === 0) next += direction;
     return next;
-  }
-
-  /* ----- Movement Timing ----- */
-
-  /**
-   * Calculate how long each floor transition should take (ms).
-   *
-   * Short trips (≤10 floors): 2000ms per floor
-   * Long trips (>10 floors):
-   *   - First 3: accelerate (2000 → 1500 → 1000 ms)
-   *   - Middle:  cruise (proportional, min 50ms, max 300ms)
-   *   - Last 3:  decelerate (1000 → 1500 → 2000 ms)
-   */
-  _getFloorDuration(index, totalFloors) {
-    if (totalFloors <= 10) return 2000;
-
-    var ACCEL = 3;
-    var DECEL_START = totalFloors - 3;
-
-    // Acceleration phase
-    if (index < ACCEL) {
-      return [2000, 1500, 1000][index];
-    }
-
-    // Deceleration phase
-    if (index >= DECEL_START) {
-      return [1000, 1500, 2000][index - DECEL_START];
-    }
-
-    // Cruise phase
-    var middleFloors = totalFloors - 6;
-    var targetCruiseTime = 21000; // 21 seconds budget for cruise
-    return Math.max(50, Math.min(300, Math.floor(targetCruiseTime / middleFloors)));
   }
 
   /* ----- Display Update ----- */
