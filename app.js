@@ -96,16 +96,24 @@ class ElevatorGame {
     document.addEventListener('click',   initAudio, { once: true });
     document.addEventListener('keydown', initAudio, { once: true });
 
-    // Toggle voice announcement with 'v' key
-    document.addEventListener('keydown', (e) => {
-      if (e.key.toLowerCase() === 'v') {
-        this.announceFloor = !this.announceFloor;
-        console.log('[ElevatorGame] Announce floor toggled:', this.announceFloor);
+    // Load setting.ini
+    fetch('setting.ini')
+      .then(response => response.text())
+      .then(text => {
+        const match = text.match(/announce_floor\s*=\s*(true|false)/i);
+        if (match) {
+          this.announceFloor = match[1].toLowerCase() === 'true';
+          console.log('[ElevatorGame] Setting loaded. announceFloor:', this.announceFloor);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load setting.ini:', err);
+      })
+      .finally(() => {
         if (this.voiceStatus) {
           this.voiceStatus.textContent = this.announceFloor ? '開啟' : '關閉';
         }
-      }
-    });
+      });
 
     // Auto-focus input
     this.floorInput.focus();
