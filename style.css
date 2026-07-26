@@ -647,6 +647,52 @@ body {
 }
 
 /* ============================================
+   Energy Panel
+   ============================================ */
+.energy-panel {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: 'Orbitron', 'Microsoft JhengHei', sans-serif;
+  font-size: 0.9rem;
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: box-shadow 0.3s, border-color 0.3s, transform 0.1s;
+}
+
+.energy-panel.error-flash {
+  box-shadow: 0 0 15px rgba(255, 82, 82, 0.8);
+  border-color: #FF5252;
+  animation: shake 0.55s ease;
+}
+
+.energy-header {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.energy-header span {
+  color: #FFEB3B;
+  font-size: 1.1rem;
+}
+
+.energy-timer {
+  font-size: 0.8rem;
+  color: #B0BEC5;
+  display: none;
+}
+
+.energy-timer span {
+  font-family: monospace;
+}
+
+/* ============================================
    Status Panel
    ============================================ */
 .status-panel {

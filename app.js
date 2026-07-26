@@ -46,6 +46,13 @@ class ElevatorGame {
     this._submitLocked = false;
     this.announceFloor = false;
 
+    // Energy state
+    this.recoveryMinutes = 10;
+    this.maxEnergy = 20;
+    this.currentEnergy = 20;
+    this.lastRecoveryTime = Date.now();
+    this.energyTimerInterval = null;
+
     // DOM references
     this.floorDisplay = document.getElementById('floor-display');
     this.arrowUp      = document.getElementById('arrow-up');
@@ -57,6 +64,11 @@ class ElevatorGame {
 
     this.shaftStrip   = document.getElementById('shaft-strip');
     this.voiceStatus  = document.getElementById('voice-status');
+
+    this.energyPanel    = document.getElementById('energy-panel');
+    this.energyText     = document.getElementById('energy-text');
+    this.energyTimer    = document.getElementById('energy-timer');
+    this.energyTimerContainer = document.getElementById('energy-timer-container');
 
     this._init();
   }
@@ -100,10 +112,20 @@ class ElevatorGame {
     fetch('setting.ini')
       .then(response => response.text())
       .then(text => {
-        const match = text.match(/announce_floor\s*=\s*(true|false)/i);
-        if (match) {
-          this.announceFloor = match[1].toLowerCase() === 'true';
+        const matchAudio = text.match(/announce_floor\s*=\s*(true|false)/i);
+        if (matchAudio) {
+          this.announceFloor = matchAudio[1].toLowerCase() === 'true';
           console.log('[ElevatorGame] Setting loaded. announceFloor:', this.announceFloor);
+        }
+
+        const matchRecovery = text.match(/recovery_minutes\s*=\s*(\d+)/i);
+        if (matchRecovery) {
+          this.recoveryMinutes = parseInt(matchRecovery[1], 10);
+        }
+
+        const matchMaxEnergy = text.match(/max_energy\s*=\s*(\d+)/i);
+        if (matchMaxEnergy) {
+          this.maxEnergy = parseInt(matchMaxEnergy[1], 10);
         }
       })
       .catch(err => {
@@ -113,12 +135,97 @@ class ElevatorGame {
         if (this.voiceStatus) {
           this.voiceStatus.textContent = this.announceFloor ? '開啟' : '關閉';
         }
+        this._initEnergySystem();
       });
 
     // Auto-focus input
     this.floorInput.focus();
 
     console.log('[ElevatorGame] Initialized successfully. State:', this.state);
+  }
+
+  /* ---------- Energy System ---------- */
+  _initEnergySystem() {
+    // Attempt to load from localStorage
+    const savedEnergy = localStorage.getItem('elevator_energy');
+    const savedTime = localStorage.getItem('elevator_energy_time');
+
+    if (savedEnergy !== null && savedTime !== null) {
+      let energy = parseInt(savedEnergy, 10);
+      let lastTime = parseInt(savedTime, 10);
+      let now = Date.now();
+      
+      if (energy < this.maxEnergy) {
+        let recoveryMs = this.recoveryMinutes * 60 * 1000;
+        let elapsed = now - lastTime;
+        let recoveredPoints = Math.floor(elapsed / recoveryMs);
+        
+        if (recoveredPoints > 0) {
+          energy = Math.min(this.maxEnergy, energy + recoveredPoints);
+          lastTime += recoveredPoints * recoveryMs; // Advance the timer by exact full periods
+        }
+      } else {
+        lastTime = now; // If full, keep timer current
+      }
+      
+      this.currentEnergy = energy;
+      this.lastRecoveryTime = lastTime;
+    } else {
+      this.currentEnergy = this.maxEnergy;
+      this.lastRecoveryTime = Date.now();
+    }
+    
+    this._saveEnergyState();
+    this._updateEnergyUI();
+    
+    if (this.energyTimerInterval) clearInterval(this.energyTimerInterval);
+    this.energyTimerInterval = setInterval(() => this._checkEnergyRecovery(), 1000);
+  }
+
+  _checkEnergyRecovery() {
+    if (this.currentEnergy >= this.maxEnergy) {
+      this.currentEnergy = this.maxEnergy;
+      this.lastRecoveryTime = Date.now();
+      this._updateEnergyUI();
+      return;
+    }
+
+    let now = Date.now();
+    let recoveryMs = this.recoveryMinutes * 60 * 1000;
+    
+    if (now - this.lastRecoveryTime >= recoveryMs) {
+      this.currentEnergy++;
+      this.lastRecoveryTime += recoveryMs;
+      this._saveEnergyState();
+    }
+    this._updateEnergyUI();
+  }
+  
+  _saveEnergyState() {
+    localStorage.setItem('elevator_energy', this.currentEnergy.toString());
+    localStorage.setItem('elevator_energy_time', this.lastRecoveryTime.toString());
+  }
+
+  _updateEnergyUI() {
+    if (!this.energyText || !this.energyTimer || !this.energyTimerContainer) return;
+    
+    this.energyText.textContent = `${this.currentEnergy} / ${this.maxEnergy}`;
+    
+    if (this.currentEnergy >= this.maxEnergy) {
+      this.energyTimerContainer.style.display = 'none';
+    } else {
+      this.energyTimerContainer.style.display = 'block';
+      let now = Date.now();
+      let recoveryMs = this.recoveryMinutes * 60 * 1000;
+      let nextRecoveryIn = recoveryMs - (now - this.lastRecoveryTime);
+      if (nextRecoveryIn < 0) nextRecoveryIn = 0;
+      
+      let totalSeconds = Math.floor(nextRecoveryIn / 1000);
+      let mins = Math.floor(totalSeconds / 60);
+      let secs = totalSeconds % 60;
+      
+      this.energyTimer.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
   }
 
   /* ---------- Shaft Setup ---------- */
@@ -246,6 +353,20 @@ class ElevatorGame {
       return;
     }
 
+    if (this.currentEnergy < 1) {
+      this._showLowEnergyError();
+      return;
+    }
+
+    // Deduct energy
+    this.currentEnergy--;
+    if (this.currentEnergy === this.maxEnergy - 1) {
+      // Just started recovering, reset timer to now
+      this.lastRecoveryTime = Date.now();
+    }
+    this._saveEnergyState();
+    this._updateEnergyUI();
+
     this.targetFloor = target;
     // Keep the input value visible during travel — it will be cleared after arrival
     this._startElevator();
@@ -258,6 +379,16 @@ class ElevatorGame {
     setTimeout(function() {
       self.floorInput.classList.remove('shake');
     }, 600);
+  }
+
+  _showLowEnergyError() {
+    this._showError();
+    if (this.energyPanel) {
+      this.energyPanel.classList.add('error-flash');
+      setTimeout(() => {
+        this.energyPanel.classList.remove('error-flash');
+      }, 600);
+    }
   }
 
   /* ---------- Elevator Sequence ---------- */
