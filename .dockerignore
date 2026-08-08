@@ -1,0 +1,6 @@
+node_modules
+.git
+.cursor
+*.png
+test.js
+package-lock.json
